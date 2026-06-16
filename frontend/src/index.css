@@ -1,0 +1,162 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 5.9% 10%;
+    --radius: 0.625rem;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Brand Colors */
+    --brand-50: #EFF6FF;
+    --brand-100: #DBEAFE;
+    --brand-200: #BFDBFE;
+    --brand-300: #93C5FD;
+    --brand-400: #60A5FA;
+    --brand-500: #3B82F6;
+    --brand-600: #2563EB;
+    --brand-700: #1D4ED8;
+    --brand-800: #1E40AF;
+    --brand-900: #1E3A5F;
+
+    /* Parent Zone */
+    --parent-50: #F0F7FF;
+    --parent-100: #D6EBFF;
+    --parent-200: #93C5FD;
+    --parent-300: #3B82F6;
+    --parent-400: #2563EB;
+    --parent-500: #1D4ED8;
+    --parent-600: #1E40AF;
+    --parent-700: #0F2B5E;
+
+    /* Vendor Zone */
+    --vendor-50: #ECFDF5;
+    --vendor-100: #D1FAE5;
+    --vendor-200: #A7F3D0;
+    --vendor-300: #34D399;
+    --vendor-400: #10B981;
+    --vendor-500: #059669;
+    --vendor-600: #047857;
+    --vendor-700: #064E3B;
+
+    /* School Zone */
+    --school-50: #FAF5FF;
+    --school-100: #F3E8FF;
+    --school-200: #D8B4FE;
+    --school-300: #A855F7;
+    --school-400: #9333EA;
+    --school-500: #7E22CE;
+    --school-600: #6B21A8;
+    --school-700: #581C87;
+
+    /* Admin Zone */
+    --admin-50: #F8FAFC;
+    --admin-100: #E2E8F0;
+    --admin-200: #94A3B8;
+    --admin-300: #475569;
+    --admin-400: #334155;
+    --admin-500: #1E293B;
+    --admin-600: #0F172A;
+    --admin-700: #020617;
+
+    /* Semantic */
+    --success: #27AE60;
+    --warning: #F2994A;
+    --error: #E74C3C;
+    --info: #3B82F6;
+    --urgent: #DC2626;
+
+    /* Gamification */
+    --gold: #FFD700;
+    --silver: #C0C0C0;
+    --bronze: #CD7F32;
+    --platinum: #E5E4E2;
+
+    /* Demand */
+    --demand-low: #27AE60;
+    --demand-medium: #F2994A;
+    --demand-high: #E74C3C;
+    --demand-critical: #C0392B;
+  }
+
+  .dark {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-body antialiased;
+    font-family: 'Inter', sans-serif;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Poppins', sans-serif;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: 'Poppins', sans-serif;
+  }
+  .font-body {
+    font-family: 'Inter', sans-serif;
+  }
+  .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
