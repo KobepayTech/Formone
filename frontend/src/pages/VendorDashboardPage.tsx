@@ -27,6 +27,7 @@ import {
 } from 'recharts';
 import Layout from '@/components/Layout';
 import StatusBadge from '@/components/StatusBadge';
+import { formatCurrency } from '@/lib/currency';
 import { applications, vendors, transactions, interviewTickets } from '@/lib/mockData';
 
 /* ── Types ── */
@@ -193,7 +194,7 @@ const QueueRow: FC<{ item: QueueItem; index: number }> = ({ item, index }) => {
         </span>
       </td>
       <td className="px-4 py-3 font-mono text-sm font-semibold text-gray-900">
-        Rs. {item.amount.toLocaleString('en-IN')}
+        {formatCurrency(item.amount)}
       </td>
       <td className="px-4 py-3 font-mono text-xs text-gray-500">
         -{item.tokenCost} tokens
@@ -259,7 +260,7 @@ const VendorDashboardPage: FC = () => {
         showNotification({
           id: `notif_${Date.now()}`,
           title: `New submission from ${newItems[0].parentName}`,
-          message: `${newItems[0].schoolsCount} schools, Rs. ${newItems[0].amount}`,
+          message: `${newItems[0].schoolsCount} schools, ${formatCurrency(newItems[0].amount)}`,
           action: 'Process now',
         });
       }
@@ -356,7 +357,7 @@ const VendorDashboardPage: FC = () => {
             <StatCard
               icon={IndianRupee}
               label="Payments Collected Today"
-              value={`Rs. ${(totalCollected || 12450).toLocaleString('en-IN')}`}
+              value={`${formatCurrency((totalCollected || 12450))}`}
               trend="+18%"
               trendUp
               index={0}
@@ -409,7 +410,7 @@ const VendorDashboardPage: FC = () => {
                   </span>
                   <span className="text-base font-medium text-vendor-600">Tokens</span>
                 </div>
-                <p className="mt-1 text-xs text-gray-400">~ Rs. {(tokenBalance * 10).toLocaleString('en-IN')} value</p>
+                <p className="mt-1 text-xs text-gray-400">~ {formatCurrency((tokenBalance * 10))} value</p>
               </div>
 
               {/* Center - Meter */}
@@ -543,7 +544,7 @@ const VendorDashboardPage: FC = () => {
                       <p className="text-xs text-gray-400">{item.studentName}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-semibold text-gray-900">Rs. {item.amount}</p>
+                      <p className="text-sm font-semibold text-gray-900">{formatCurrency(item.amount)}</p>
                       <p className="text-xs text-gray-400">{item.schoolsCount} schools</p>
                     </div>
                   </div>
@@ -604,7 +605,7 @@ const VendorDashboardPage: FC = () => {
                       </div>
                     </div>
                     <span className="font-mono text-sm font-semibold text-gray-900">
-                      Rs. {txn.amount.toLocaleString('en-IN')}
+                      {formatCurrency(txn.amount)}
                     </span>
                   </motion.div>
                 ))}
@@ -634,11 +635,11 @@ const VendorDashboardPage: FC = () => {
                       tick={{ fontSize: 11, fill: '#9CA3AF' }}
                       axisLine={false}
                       tickLine={false}
-                      tickFormatter={(v: number) => `Rs.${v}`}
+                      tickFormatter={(v: number) => `${formatCurrency(v)}`}
                       width={50}
                     />
                     <Tooltip
-                      formatter={(value: number) => [`Rs. ${value.toLocaleString('en-IN')}`, 'Amount']}
+                      formatter={(value: number) => [`${formatCurrency(value)}`, 'Amount']}
                       contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                     />
                     <Bar dataKey="amount" radius={[4, 4, 0, 0]}>

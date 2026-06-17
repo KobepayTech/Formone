@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import Layout from '@/components/Layout';
 import MatchScore from '@/components/MatchScore';
+import { formatCurrency } from '@/lib/currency';
 import DemandBadge from '@/components/DemandBadge';
 import { schools, studentProfiles, calculateMatchScore } from '@/lib/mockData';
 import type { School } from '@/types';
@@ -83,7 +84,7 @@ export default function SchoolDiscoveryPage() {
 
   /* Filter & Sort */
   const filtered = useMemo(() => {
-    let result = schoolsWithScores.filter((s) => {
+    const result = schoolsWithScores.filter((s) => {
       if (search && !s.name.toLowerCase().includes(search.toLowerCase()) && !s.city.toLowerCase().includes(search.toLowerCase())) return false;
       if (selectedBoard !== 'All' && s.boardType !== selectedBoard) return false;
       if (selectedCity !== 'All' && s.city !== selectedCity) return false;
@@ -285,7 +286,7 @@ export default function SchoolDiscoveryPage() {
                   {/* Fee Range */}
                   <div>
                     <label className="mb-1.5 block text-xs font-medium text-gray-700">
-                      Max Fee: Rs. {feeRange.toLocaleString()}
+                      Max Fee: {formatCurrency(feeRange)}
                     </label>
                     <input
                       type="range"
@@ -297,8 +298,8 @@ export default function SchoolDiscoveryPage() {
                       className="w-full accent-parent-500"
                     />
                     <div className="flex justify-between text-[10px] text-gray-400">
-                      <span>Rs. 10K</span>
-                      <span>Rs. 5L</span>
+                      <span>TSh 10K</span>
+                      <span>TSh 5L</span>
                     </div>
                   </div>
 
@@ -404,7 +405,7 @@ export default function SchoolDiscoveryPage() {
                   </div>
 
                   <p className="mt-2 text-sm font-semibold text-parent-700">
-                    Rs. {school.feesRange.min.toLocaleString()} - {school.feesRange.max.toLocaleString()}/yr
+                    {formatCurrency(school.feesRange.min)} - {school.feesRange.max.toLocaleString()}/yr
                   </p>
 
                   {/* Facilities */}
@@ -443,7 +444,7 @@ export default function SchoolDiscoveryPage() {
                           Added
                         </>
                       ) : (
-                        `Add — Rs. ${formPrice + surge}`
+                        `Add — ${formatCurrency(formPrice + surge)}`
                       )}
                     </button>
                   </div>
@@ -554,7 +555,7 @@ export default function SchoolDiscoveryPage() {
                   onClick={() => { addToCart(detailSchool.id); setDetailSchool(null); }}
                   className="w-full rounded-xl bg-parent-600 py-3 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(29,78,216,0.3)] transition-all hover:bg-parent-700 hover:-translate-y-px"
                 >
-                  Add to Cart — Rs. {Math.round(detailSchool.feesRange.min * 0.005)}
+                  Add to Cart — {formatCurrency(Math.round(detailSchool.feesRange.min * 0.005))}
                 </button>
               </div>
             </motion.div>

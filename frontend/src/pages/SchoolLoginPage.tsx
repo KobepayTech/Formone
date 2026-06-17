@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '@/context/AuthContext';
+import { ApiError } from '@/lib/api';
 import {
   GraduationCap, Building2, BookOpen, User, Lock,
   Eye, EyeOff, ShieldCheck, ArrowLeft, X, CheckCircle, Loader2,
@@ -73,6 +75,7 @@ const JoinNetworkModal: React.FC<{ open: boolean; onClose: () => void }> = ({ op
 
 export default function SchoolLoginPage() {
   const navigate = useNavigate();
+  const { loginSchool } = useAuth();
   const [schoolCode, setSchoolCode] = useState('');
   const [boardType, setBoardType] = useState('');
   const [adminId, setAdminId] = useState('');
@@ -84,21 +87,20 @@ export default function SchoolLoginPage() {
   const [joinOpen, setJoinOpen] = useState(false);
   const [shake, setShake] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
-    setTimeout(() => {
-      if (schoolCode === 'DAV-DL-001' && boardType === 'CBSE' && adminId === 'admin' && password === 'password') {
-        setLoading(false);
-        navigate('/school/applicants');
-      } else {
-        setLoading(false);
-        setError('Invalid credentials or school code. Please try again.');
-        setShake(true);
-        setTimeout(() => setShake(false), 300);
-      }
-    }, 1200);
+    try {
+      await loginSchool(schoolCode.trim(), boardType, adminId.trim(), password);
+      setLoading(false);
+      navigate('/school/applicants');
+    } catch (err) {
+      setLoading(false);
+      setError(err instanceof ApiError ? err.message : 'Unable to sign in. Please try again.');
+      setShake(true);
+      setTimeout(() => setShake(false), 300);
+    }
   };
 
   const fillDemo = () => {

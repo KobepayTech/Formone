@@ -1,6 +1,8 @@
 import { useState, useRef, useCallback, type FC } from 'react';
 import { useNavigate } from 'react-router';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '@/context/AuthContext';
+import { ApiError } from '@/lib/api';
 import {
   Store,
   Lock,
@@ -98,6 +100,7 @@ const PinInput: FC<{
 /* ── main page component ── */
 const VendorLoginPage: FC = () => {
   const navigate = useNavigate();
+  const { loginVendor } = useAuth();
   const [vendorId, setVendorId] = useState('');
   const [pin, setPin] = useState('');
   const [showPin, setShowPin] = useState(false);
@@ -119,15 +122,12 @@ const VendorLoginPage: FC = () => {
 
     setIsLoading(true);
 
-    // Simulate API call
-    await new Promise((r) => setTimeout(r, 800));
-
-    // Demo credentials: VEN001 / 123456
-    if (vendorId.toUpperCase() === 'VEN001' && pin === '123456') {
+    try {
+      await loginVendor(vendorId.trim().toUpperCase(), pin);
       setSuccess(true);
       setTimeout(() => navigate('/vendor/dashboard'), 800);
-    } else {
-      setError('Invalid Vendor ID or PIN');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Unable to sign in. Please try again.');
       setIsLoading(false);
     }
   };

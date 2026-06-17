@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import Layout from '@/components/Layout';
 import { applications, vendors } from '@/lib/mockData';
+import { formatCurrency } from '@/lib/currency';
 
 /* ── Types ── */
 interface QueueItem {
@@ -124,7 +125,7 @@ const ReceiptCard: FC<{
       {item.schools.map((s, i) => (
         <div key={i} className="flex justify-between py-0.5 text-sm">
           <span className="text-gray-700">{s.name}</span>
-          <span className="font-mono text-gray-900">Rs. {s.price}</span>
+          <span className="font-mono text-gray-900">{formatCurrency(s.price)}</span>
         </div>
       ))}
     </div>
@@ -133,15 +134,15 @@ const ReceiptCard: FC<{
     <div className="space-y-1 border-b border-dashed border-gray-200 py-3">
       <div className="flex justify-between text-sm">
         <span className="text-gray-500">Total Paid</span>
-        <span className="font-display text-lg font-bold text-vendor-700">Rs. {item.totalAmount}</span>
+        <span className="font-display text-lg font-bold text-vendor-700">{formatCurrency(item.totalAmount)}</span>
       </div>
       <div className="flex justify-between text-sm">
         <span className="text-gray-500">Cash Tendered</span>
-        <span className="font-mono text-gray-700">Rs. {tendered}</span>
+        <span className="font-mono text-gray-700">{formatCurrency(tendered)}</span>
       </div>
       <div className="flex justify-between text-sm">
         <span className="text-gray-500">Change</span>
-        <span className="font-mono text-emerald-600">Rs. {change}</span>
+        <span className="font-mono text-emerald-600">{formatCurrency(change)}</span>
       </div>
       <div className="flex justify-between text-xs text-gray-400">
         <span>Token Deducted</span>
@@ -260,7 +261,7 @@ const VendorPaymentTerminalPage: FC = () => {
   };
 
   const handlePrint = () => {
-    alert('Printing...');
+    window.print();
   };
 
   const setQuickAmount = (amount: number) => {
@@ -317,8 +318,17 @@ const VendorPaymentTerminalPage: FC = () => {
                 <motion.div
                   key={item.id}
                   layout
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={batchMode ? selectedIds.has(item.id) : selectedId === item.id}
                   onClick={() => handleSelect(item.id)}
-                  className={`cursor-pointer p-4 transition-all duration-150
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleSelect(item.id);
+                    }
+                  }}
+                  className={`cursor-pointer p-4 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-vendor-400
                     ${selectedId === item.id && !batchMode
                       ? 'border-l-4 border-l-vendor-500 bg-vendor-50'
                       : 'border-l-4 border-l-transparent hover:bg-gray-50'
@@ -333,7 +343,7 @@ const VendorPaymentTerminalPage: FC = () => {
                     </div>
                     <div className="text-right">
                       <p className="font-display text-base font-bold text-vendor-700">
-                        Rs. {item.totalAmount.toLocaleString('en-IN')}
+                        {formatCurrency(item.totalAmount)}
                       </p>
                     </div>
                   </div>
@@ -390,7 +400,7 @@ const VendorPaymentTerminalPage: FC = () => {
                     </motion.div>
                     <h2 className="font-display text-2xl font-bold">Payment Confirmed!</h2>
                     <p className="mt-1 text-vendor-100">
-                      Rs. {selectedItem.totalAmount.toLocaleString('en-IN')} received from {selectedItem.parentName}
+                      {formatCurrency(selectedItem.totalAmount)} received from {selectedItem.parentName}
                     </p>
                     <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-sm">
                       <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
@@ -442,7 +452,7 @@ const VendorPaymentTerminalPage: FC = () => {
                                 <Building2 className="h-4 w-4 text-gray-400" />
                                 {school.name}
                               </span>
-                              <span className="font-mono text-gray-900">Rs. {school.price}</span>
+                              <span className="font-mono text-gray-900">{formatCurrency(school.price)}</span>
                             </div>
                           ))}
                         </div>
@@ -453,7 +463,7 @@ const VendorPaymentTerminalPage: FC = () => {
                         <p className="text-sm font-medium text-gray-500">Total Amount Due</p>
                         <div className="mt-1 flex items-baseline gap-2">
                           <span className="font-display text-4xl font-bold text-vendor-700">
-                            Rs. {totalAmount.toLocaleString('en-IN')}
+                            {formatCurrency(totalAmount)}
                           </span>
                         </div>
                         <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
@@ -469,7 +479,7 @@ const VendorPaymentTerminalPage: FC = () => {
                         </label>
                         <div className="relative">
                           <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-xl text-gray-400">
-                            Rs.
+                            TSh
                           </span>
                           <input
                             type="number"
@@ -516,7 +526,7 @@ const VendorPaymentTerminalPage: FC = () => {
                             >
                               <p className="text-sm text-gray-500">Change to Return</p>
                               <p className="font-display text-3xl font-bold text-emerald-600">
-                                Rs. {change.toLocaleString('en-IN')}
+                                {formatCurrency(change)}
                               </p>
                             </motion.div>
                           )}
@@ -580,10 +590,10 @@ const VendorPaymentTerminalPage: FC = () => {
                     </div>
                     <div className="text-right">
                       <p className="font-mono text-sm font-semibold text-gray-900">
-                        Rs. {txn.amount.toLocaleString('en-IN')}
+                        {formatCurrency(txn.amount)}
                       </p>
                       {txn.change > 0 && (
-                        <p className="text-xs text-emerald-600">Change: Rs. {txn.change}</p>
+                        <p className="text-xs text-emerald-600">Change: {formatCurrency(txn.change)}</p>
                       )}
                     </div>
                   </motion.div>

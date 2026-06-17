@@ -18,6 +18,12 @@ import {
 import { Link } from 'react-router';
 import Layout from '@/components/Layout';
 import { schools, vendors, formCatalog } from '@/lib/mockData';
+import { calculatePrice } from '@/lib/pricing';
+import { formatCurrency } from '@/lib/currency';
+
+/** Mock forms carry no per-form tax rate, so we apply a single default here.
+ *  Real totals come from the backend (which uses each form's taxPercentage). */
+const DEFAULT_TAX_PERCENT = 18;
 
 /* ── Types ─────────────────────────────────────────────────────────────────── */
 
@@ -44,17 +50,6 @@ const slideIn = {
   initial: { opacity: 0, x: 30 },
   animate: { opacity: 1, x: 0 },
   exit: { opacity: 0, x: 30, transition: { duration: 0.25 } },
-};
-
-/* ── Demand Surge Info ─────────────────────────────────────────────────────── */
-
-const getSurgeMultiplier = (level: string): number => {
-  switch (level) {
-    case 'critical': return 0.35;
-    case 'high': return 0.2;
-    case 'medium': return 0.05;
-    default: return 0;
-  }
 };
 
 /* ── Main Component ────────────────────────────────────────────────────────── */
@@ -131,32 +126,26 @@ export default function FormCartPage() {
     }, 300);
   };
 
-  /* Pricing calculations */
+  /* Pricing calculations — mirrors the backend pricing service so the cart
+     total matches what the server charges at checkout. */
   const pricing = useMemo(() => {
     const itemDetails = cart.map((item) => {
-      const surgeRate = getSurgeMultiplier(item.demandLevel);
-      const surgeAmount = Math.round(item.basePrice * surgeRate);
-      const itemTotal = (item.basePrice + surgeAmount) * item.quantity;
-      return { ...item, surgeRate, surgeAmount, itemTotal };
+      const breakdown = calculatePrice(item.basePrice, item.demandLevel, DEFAULT_TAX_PERCENT, item.quantity);
+      const surgePercent = Math.round((breakdown.surgeMultiplier - 1) * 100);
+      return { ...item, ...breakdown, surgePercent, itemTotal: breakdown.finalPrice };
     });
 
     const subtotal = itemDetails.reduce((s, i) => s + i.basePrice * i.quantity, 0);
     const totalSurge = itemDetails.reduce((s, i) => s + i.surgeAmount * i.quantity, 0);
-
-    /* Bulk discount: 3+ items get 10% off subtotal */
+    const bulkDiscount = itemDetails.reduce((s, i) => s + i.bulkDiscountAmount, 0);
+    const tax = itemDetails.reduce((s, i) => s + i.taxAmount, 0);
+    const total = itemDetails.reduce((s, i) => s + i.finalPrice, 0);
     const totalItems = cart.reduce((s, i) => s + i.quantity, 0);
-    const bulkDiscount = totalItems >= 3 ? Math.round(subtotal * 0.1) : 0;
-
-    const tax = Math.round((subtotal + totalSurge - bulkDiscount) * 0.18);
-    const total = subtotal + totalSurge - bulkDiscount + tax;
 
     return { itemDetails, subtotal, totalSurge, bulkDiscount, tax, total, totalItems };
   }, [cart]);
 
   const activeVendors = vendors.filter((v) => v.status === 'active');
-
-  /* TZS conversion placeholder (1 INR ≈ 30 TZS) */
-  const toTzs = (inr: number) => inr * 30;
 
   if (cart.length === 0) {
     return (
@@ -269,7 +258,7 @@ export default function FormCartPage() {
                           {(item.demandLevel === 'high' || item.demandLevel === 'critical') && (
                             <span className="inline-flex items-center gap-1 text-xs font-medium text-urgent-500">
                               <Flame className="h-3.5 w-3.5 animate-pulse" />
-                              High demand +{Math.round(item.surgeRate * 100)}%
+                              High demand +{item.surgePercent}%
                             </span>
                           )}
                         </div>
@@ -277,11 +266,11 @@ export default function FormCartPage() {
                         <div className="text-right">
                           {item.surgeAmount > 0 && (
                             <p className="text-xs text-gray-400 line-through">
-                              Rs. {(item.basePrice * item.quantity).toLocaleString()}
+                              {formatCurrency(item.basePrice * item.quantity)}
                             </p>
                           )}
                           <p className="text-sm font-semibold text-parent-700">
-                            Rs. {item.itemTotal.toLocaleString()}
+                            {formatCurrency(item.itemTotal)}
                           </p>
                         </div>
                       </div>
@@ -306,12 +295,18 @@ export default function FormCartPage() {
                           >
                             <div className="flex justify-between">
                               <span className="text-gray-600">Base Price</span>
-                              <span className="font-medium">Rs. {item.basePrice.toLocaleString()}</span>
+                              <span className="font-medium">{formatCurrency(item.basePrice)}</span>
                             </div>
                             {item.surgeAmount > 0 && (
                               <div className="flex justify-between text-urgent-500">
-                                <span>Demand Surge ({Math.round(item.surgeRate * 100)}%)</span>
-                                <span className="font-medium">+ Rs. {item.surgeAmount.toLocaleString()}</span>
+                                <span>Demand Surge ({item.surgePercent}%)</span>
+                                <span className="font-medium">+ {formatCurrency(item.surgeAmount)}</span>
+                              </div>
+                            )}
+                            {item.bulkDiscountAmount > 0 && (
+                              <div className="flex justify-between text-success-600">
+                                <span>Bulk Discount ({item.bulkDiscountPercent}%)</span>
+                                <span className="font-medium">- {formatCurrency(item.bulkDiscountAmount)}</span>
                               </div>
                             )}
                             <div className="flex justify-between">
@@ -320,7 +315,7 @@ export default function FormCartPage() {
                             </div>
                             <div className="border-t border-gray-200 pt-1 flex justify-between font-semibold">
                               <span>Net</span>
-                              <span>Rs. {item.itemTotal.toLocaleString()}</span>
+                              <span>{formatCurrency(item.itemTotal)}</span>
                             </div>
                           </motion.div>
                         )}
@@ -340,7 +335,7 @@ export default function FormCartPage() {
               <div className="mt-4 space-y-2.5">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Subtotal</span>
-                  <span className="font-medium">Rs. {pricing.subtotal.toLocaleString()}</span>
+                  <span className="font-medium">{formatCurrency(pricing.subtotal)}</span>
                 </div>
 
                 {pricing.totalSurge > 0 && (
@@ -349,7 +344,7 @@ export default function FormCartPage() {
                       <Flame className="h-3.5 w-3.5" />
                       Demand Surge
                     </span>
-                    <span className="font-medium">+ Rs. {pricing.totalSurge.toLocaleString()}</span>
+                    <span className="font-medium">+ {formatCurrency(pricing.totalSurge)}</span>
                   </div>
                 )}
 
@@ -357,15 +352,15 @@ export default function FormCartPage() {
                   <div className="flex justify-between text-sm text-success-600">
                     <span className="flex items-center gap-1">
                       <CheckCircle className="h-3.5 w-3.5" />
-                      Bulk Discount (10%)
+                      Bulk Discount
                     </span>
-                    <span className="font-medium">- Rs. {pricing.bulkDiscount.toLocaleString()}</span>
+                    <span className="font-medium">- {formatCurrency(pricing.bulkDiscount)}</span>
                   </div>
                 )}
 
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Tax (18% GST)</span>
-                  <span className="font-medium">Rs. {pricing.tax.toLocaleString()}</span>
+                  <span className="text-gray-600">Tax ({DEFAULT_TAX_PERCENT}%)</span>
+                  <span className="font-medium">{formatCurrency(pricing.tax)}</span>
                 </div>
               </div>
 
@@ -381,9 +376,8 @@ export default function FormCartPage() {
                     animate={{ scale: 1 }}
                     transition={{ duration: 0.2 }}
                   >
-                    Rs. {pricing.total.toLocaleString()}
+                    {formatCurrency(pricing.total)}
                   </motion.p>
-                  <p className="text-xs text-gray-400">({toTzs(pricing.total).toLocaleString()} TZS)</p>
                 </div>
               </div>
 
@@ -396,7 +390,7 @@ export default function FormCartPage() {
                   transition={{ delay: 0.4 }}
                 >
                   <CheckCircle className="h-4 w-4" />
-                  You save Rs. {pricing.bulkDiscount.toLocaleString()} with bulk discount!
+                  You save {formatCurrency(pricing.bulkDiscount)} with bulk discount!
                 </motion.div>
               )}
 

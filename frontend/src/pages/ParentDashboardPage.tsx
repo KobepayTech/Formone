@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import Layout from '@/components/Layout';
 import StatusBadge from '@/components/StatusBadge';
+import { formatCurrency } from '@/lib/currency';
 import {
   studentProfiles,
   applications,
@@ -352,7 +353,7 @@ export default function ParentDashboardPage() {
                   {[
                     { label: 'Applications', value: gamification.formsPurchased, color: 'text-parent-600' },
                     { label: 'Documents', value: 4, color: 'text-success-500' },
-                    { label: 'Savings', value: `Rs. ${Math.floor(gamification.formsPurchased * 30)}`, color: 'text-vendor-500' },
+                    { label: 'Savings', value: `${formatCurrency(Math.floor(gamification.formsPurchased * 30))}`, color: 'text-vendor-500' },
                   ].map((stat) => (
                     <div key={stat.label} className="text-center">
                       <p className={`text-lg font-bold ${stat.color}`}>{stat.value}</p>

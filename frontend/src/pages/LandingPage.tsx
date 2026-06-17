@@ -667,7 +667,7 @@ const LandingPage: FC = () => {
                   </div>
                   <div className="mt-3 flex items-center justify-between">
                     <span className="text-xs text-gray-500">
-                      Fees: Rs. {(school.feesRange.min / 1000).toFixed(0)}K-{(school.feesRange.max / 1000).toFixed(0)}K/yr
+                      Fees: TSh {(school.feesRange.min / 1000).toFixed(0)}K-{(school.feesRange.max / 1000).toFixed(0)}K/yr
                     </span>
                     <span className={`inline-flex items-center gap-1 text-xs font-medium ${
                       school.demandLevel === 'high' || school.demandLevel === 'critical'
@@ -840,7 +840,7 @@ const LandingPage: FC = () => {
               </div>
               <h3 className="font-display text-base font-semibold text-gray-900">For Parents</h3>
               <div className="mt-4 flex items-baseline gap-1">
-                <span className="font-display text-3xl font-bold text-brand-600">Rs. 100-500</span>
+                <span className="font-display text-3xl font-bold text-brand-600">TSh 100-500</span>
                 <span className="text-sm text-gray-500">/form</span>
               </div>
               <p className="mt-3 text-sm text-gray-600">

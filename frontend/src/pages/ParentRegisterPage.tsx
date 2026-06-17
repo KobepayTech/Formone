@@ -3,6 +3,8 @@ import type { FC } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
 import { Link } from 'react-router';
+import { useAuth } from '@/context/AuthContext';
+import { ApiError } from '@/lib/api';
 import {
   Check,
   ChevronRight,
@@ -110,8 +112,11 @@ const Confetti: FC = () => {
 /* ── Main Component ────────────────────────────────────────────────────────── */
 
 export default function ParentRegisterPage() {
+  const { registerParent } = useAuth();
   const [step, setStep] = useState(0);
   const [dir, setDir] = useState(1);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   /* Step 1: OTP */
   const [phone, setPhone] = useState('');
@@ -129,6 +134,10 @@ export default function ParentRegisterPage() {
     gender: '' as 'male' | 'female' | 'other' | '',
     bloodGroup: '',
     address: '',
+    city: '',
+    state: '',
+    email: '',
+    password: '',
     parentName: '',
     parentPhone: '',
     parentEmail: '',
@@ -209,8 +218,41 @@ export default function ParentRegisterPage() {
     profile.gender &&
     profile.bloodGroup &&
     profile.address &&
+    profile.city &&
+    profile.state &&
+    profile.email &&
+    profile.password.length >= 6 &&
     profile.parentName &&
     profile.parentPhone;
+
+  const handleGeneratePassport = async () => {
+    if (!requiredDocsUploaded || submitting) return;
+    setSubmitError('');
+    setSubmitting(true);
+    try {
+      await registerParent({
+        email: profile.email,
+        phone: phone ? `+91${phone}` : undefined,
+        password: profile.password,
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+        dateOfBirth: profile.dateOfBirth,
+        gender: profile.gender,
+        bloodGroup: profile.bloodGroup,
+        address: profile.address,
+        city: profile.city,
+        state: profile.state,
+        parentName: profile.parentName,
+        parentPhone: profile.parentPhone,
+        parentEmail: profile.parentEmail || profile.email,
+      });
+      goNext();
+    } catch (err) {
+      setSubmitError(err instanceof ApiError ? err.message : 'Registration failed. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const requiredDocsUploaded = docs.filter((d) => d.required).every((d) => d.file !== null);
 
@@ -515,6 +557,56 @@ export default function ParentRegisterPage() {
                     />
                   </div>
 
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium text-gray-700">City</label>
+                      <input
+                        value={profile.city}
+                        onChange={(e) => setProfile((p) => ({ ...p, city: e.target.value }))}
+                        placeholder="City"
+                        className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm outline-none focus:border-parent-500 focus:ring-2 focus:ring-parent-200"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium text-gray-700">State / Region</label>
+                      <input
+                        value={profile.state}
+                        onChange={(e) => setProfile((p) => ({ ...p, state: e.target.value }))}
+                        placeholder="State or region"
+                        className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm outline-none focus:border-parent-500 focus:ring-2 focus:ring-parent-200"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="border-t border-gray-100 pt-4">
+                    <h3 className="mb-3 text-sm font-semibold text-gray-700">Account Login</h3>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                          <Mail className="mr-1 inline h-3.5 w-3.5" />
+                          Email
+                        </label>
+                        <input
+                          type="email"
+                          value={profile.email}
+                          onChange={(e) => setProfile((p) => ({ ...p, email: e.target.value }))}
+                          placeholder="you@example.com"
+                          className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm outline-none focus:border-parent-500 focus:ring-2 focus:ring-parent-200"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1.5 block text-sm font-medium text-gray-700">Password</label>
+                        <input
+                          type="password"
+                          value={profile.password}
+                          onChange={(e) => setProfile((p) => ({ ...p, password: e.target.value }))}
+                          placeholder="At least 6 characters"
+                          className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm outline-none focus:border-parent-500 focus:ring-2 focus:ring-parent-200"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="border-t border-gray-100 pt-4">
                     <h3 className="mb-3 text-sm font-semibold text-gray-700">Parent/Guardian Details</h3>
                     <div className="space-y-4">
@@ -706,14 +798,17 @@ export default function ParentRegisterPage() {
                       Back
                     </button>
                     <button
-                      onClick={goNext}
-                      disabled={!requiredDocsUploaded}
+                      onClick={handleGeneratePassport}
+                      disabled={!requiredDocsUploaded || submitting}
                       className="flex flex-1 items-center justify-center rounded-xl bg-parent-600 py-2.5 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(29,78,216,0.3)] transition-all hover:bg-parent-700 hover:-translate-y-px disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0"
                     >
-                      Generate My Passport
-                      <ChevronRight className="ml-1 h-4 w-4" />
+                      {submitting ? 'Creating account...' : 'Generate My Passport'}
+                      {!submitting && <ChevronRight className="ml-1 h-4 w-4" />}
                     </button>
                   </div>
+                  {submitError && (
+                    <p className="text-center text-xs font-medium text-error-500">{submitError}</p>
+                  )}
                   <p className="text-center text-xs text-gray-400 italic">Optional documents can be added later</p>
                 </div>
               )}
