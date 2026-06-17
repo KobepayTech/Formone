@@ -76,11 +76,11 @@ router.put('/emergency-protocols/:id', asyncHandler(async (req: AuthRequest, res
 
   const result = await prisma.$transaction(async (tx) => {
     if (isActive) {
-      const protocol = await tx.emergencyProtocol.findUnique({ where: { id: req.params.id as string as string as string } });
+      const protocol = await tx.emergencyProtocol.findUnique({ where: { id: req.params.id as string } });
       if (protocol) await tx.emergencyProtocol.updateMany({ where: { type: protocol.type, isActive: true }, data: { isActive: false, deactivatedAt: new Date() } });
     }
     return tx.emergencyProtocol.update({
-      where: { id: req.params.id as string as string as string },
+      where: { id: req.params.id as string },
       data: { isActive, activatedAt: isActive ? new Date() : null, deactivatedAt: isActive ? null : new Date() },
     });
   });

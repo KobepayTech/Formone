@@ -5,6 +5,7 @@ import { success, created } from '../utils/response';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth';
 import { generateUniversalStudentQR } from '../services/qr';
 import { NotFoundError, BadRequestError } from '../utils/errors';
+import { logger } from '../config/logger';
 
 const router = Router();
 
@@ -41,17 +42,17 @@ router.post('/documents', asyncHandler(async (req: AuthRequest, res) => {
   const doc = await prisma.document.create({
     data: { studentProfileId, documentType, fileName, fileUrl, fileSize: parseInt(fileSize), mimeType: 'application/pdf', verificationStatus: 'pending' },
   });
-  setTimeout(async () => {
-    await prisma.document.update({
+  setTimeout(() => {
+    prisma.document.update({
       where: { id: doc.id },
       data: { verificationStatus: 'verified', aiConfidenceScore: Math.random() * 20 + 80 },
-    });
+    }).catch((err) => logger.error('Document auto-verification failed', { documentId: doc.id, error: err.message }));
   }, 5000);
   created(res, doc, 'Document uploaded, verification in progress');
 }));
 
 router.get('/documents/:id/verify', asyncHandler(async (req: AuthRequest, res) => {
-  const doc = await prisma.document.findUnique({ where: { id: req.params.id as string as string } });
+  const doc = await prisma.document.findUnique({ where: { id: req.params.id as string } });
   if (!doc) throw new NotFoundError('Document not found');
   success(res, { verified: doc.verificationStatus === 'blockchain_anchored', hash: doc.blockchainHash, status: doc.verificationStatus, aiScore: doc.aiConfidenceScore });
 }));
@@ -77,7 +78,7 @@ router.get('/applications', asyncHandler(async (req: AuthRequest, res) => {
 
 router.get('/applications/:id', asyncHandler(async (req: AuthRequest, res) => {
   const app = await prisma.application.findUnique({
-    where: { id: req.params.id as string as string },
+    where: { id: req.params.id as string },
     include: { school: true,  vendor: { select: { name: true, vendorId: true } }, tickets: true, transactions: true },
   });
   if (!app) throw new NotFoundError('Application not found');
@@ -116,7 +117,7 @@ router.get('/notifications', asyncHandler(async (req: AuthRequest, res) => {
 
 router.put('/notifications/:id/read', asyncHandler(async (req: AuthRequest, res) => {
   await prisma.notification.updateMany({
-    where: { id: req.params.id as string as string, userId: req.user!.id },
+    where: { id: req.params.id as string, userId: req.user!.id },
     data: { status: 'read' },
   });
   success(res, null, 'Notification marked as read');

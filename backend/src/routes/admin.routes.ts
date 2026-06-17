@@ -65,13 +65,13 @@ router.post('/schools', asyncHandler(async (req: AuthRequest, res) => {
 }));
 
 router.get('/schools/:id', asyncHandler(async (req: AuthRequest, res) => {
-  const school = await prisma.school.findUnique({ where: { id: req.params.id as string as string }, include: {  pricingRules: { where: { isActive: true } }, admins: { include: { user: { select: { email: true } } } } } });
+  const school = await prisma.school.findUnique({ where: { id: req.params.id as string }, include: {  pricingRules: { where: { isActive: true } }, admins: { include: { user: { select: { email: true } } } } } });
   if (!school) throw new NotFoundError('School not found');
   success(res, school);
 }));
 
 router.put('/schools/:id', asyncHandler(async (req: AuthRequest, res) => {
-  const school = await prisma.school.update({ where: { id: req.params.id as string as string }, data: req.body });
+  const school = await prisma.school.update({ where: { id: req.params.id as string }, data: req.body });
   logAudit(req.user!.id, 'SCHOOL_UPDATED', 'school', school.id);
   success(res, school, 'School updated');
 }));
@@ -105,32 +105,32 @@ router.post('/vendors', asyncHandler(async (req: AuthRequest, res) => {
 }));
 
 router.get('/vendors/:id', asyncHandler(async (req: AuthRequest, res) => {
-  const vendor = await prisma.vendor.findUnique({ where: { id: req.params.id as string as string }, include: { settlements: { orderBy: { createdAt: 'desc' }, take: 10 } } });
+  const vendor = await prisma.vendor.findUnique({ where: { id: req.params.id as string }, include: { settlements: { orderBy: { createdAt: 'desc' }, take: 10 } } });
   if (!vendor) throw new NotFoundError('Vendor not found');
   success(res, vendor);
 }));
 
 router.put('/vendors/:id', asyncHandler(async (req: AuthRequest, res) => {
-  const vendor = await prisma.vendor.update({ where: { id: req.params.id as string as string }, data: req.body });
+  const vendor = await prisma.vendor.update({ where: { id: req.params.id as string }, data: req.body });
   success(res, vendor, 'Vendor updated');
 }));
 
 router.post('/vendors/:id/tokens', asyncHandler(async (req: AuthRequest, res) => {
   const { amount, reason } = req.body;
-  const vendor = await prisma.vendor.findUnique({ where: { id: req.params.id as string as string } });
+  const vendor = await prisma.vendor.findUnique({ where: { id: req.params.id as string } });
   if (!vendor) throw new NotFoundError('Vendor not found');
 
   const newBalance = vendor.tokenBalance + amount;
   if (newBalance < 0) throw new BadRequestError('Token balance cannot go below 0');
   if (newBalance > vendor.maxTokenBalance) throw new BadRequestError(`Token balance cannot exceed ${vendor.maxTokenBalance}`);
 
-  const updated = await prisma.vendor.update({ where: { id: req.params.id as string as string }, data: { tokenBalance: newBalance } });
+  const updated = await prisma.vendor.update({ where: { id: req.params.id as string }, data: { tokenBalance: newBalance } });
   logAudit(req.user!.id, 'TOKENS_ADJUSTED', 'vendor', vendor.id, { previousBalance: vendor.tokenBalance, newBalance, amount, reason });
   success(res, { vendorId: updated.id, tokenBalance: updated.tokenBalance, adjustedBy: amount }, `Tokens ${amount > 0 ? 'added' : 'deducted'}: ${amount}`);
 }));
 
 router.get('/vendors/:id/settlements', asyncHandler(async (req: AuthRequest, res) => {
-  const settlements = await prisma.vendorSettlement.findMany({ where: { vendorId: req.params.id as string as string }, orderBy: { createdAt: 'desc' } });
+  const settlements = await prisma.vendorSettlement.findMany({ where: { vendorId: req.params.id as string }, orderBy: { createdAt: 'desc' } });
   success(res, settlements);
 }));
 

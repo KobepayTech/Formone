@@ -32,7 +32,7 @@ router.get('/applicants/:id', asyncHandler(async (req: AuthRequest, res) => {
   const admin = await prisma.schoolAdmin.findUnique({ where: { userId: req.user!.id as string } });
   if (!admin) throw new NotFoundError('School admin not found');
   const app = await prisma.application.findFirst({
-    where: { id: req.params.id as string as string, schoolId: admin.schoolId },
+    where: { id: req.params.id as string, schoolId: admin.schoolId },
     include: { studentProfile: true, transactions: true, tickets: true, vendor: { select: { name: true } }, formCatalog: true },
   });
   if (!app) throw new NotFoundError('Application not found');
@@ -44,8 +44,9 @@ router.post('/schedule-interview', asyncHandler(async (req: AuthRequest, res) =>
   if (!admin) throw new NotFoundError('School admin not found');
   const { applicationId, interviewDate, interviewTime, venue, room, instructions } = req.body;
 
-  const app = await prisma.application.findFirst({ where: { id: applicationId, schoolId: admin.schoolId } });
+  const app = await prisma.application.findFirst({ where: { id: applicationId, schoolId: admin.schoolId }, include: { studentProfile: { select: { userId: true } } } });
   if (!app) throw new NotFoundError('Application not found');
+  const parentUserId = app.studentProfile.userId;
 
   const ticketNumber = `TKT-${admin.school.code}-${Date.now()}`;
   const qrCode = await generateTicketQR(ticketNumber, admin.school.code);
@@ -55,11 +56,11 @@ router.post('/schedule-interview', asyncHandler(async (req: AuthRequest, res) =>
       data: { ticketNumber, applicationId: app.id, studentProfileId: app.studentProfileId, schoolId: admin.schoolId, interviewDate: new Date(interviewDate), interviewTime, venue, room, instructions, ticketQrCode: qrCode },
     });
     await tx.application.update({ where: { id: app.id }, data: { status: 'interview_scheduled' } });
-    await tx.notification.create({ data: { userId: app.studentProfileId, type: 'interview_scheduled', title: 'Interview Scheduled', message: `Your interview at ${admin.school.name} is on ${new Date(interviewDate).toDateString()} at ${interviewTime}.`, data: { ticketId: ticket.id, venue } } });
+    await tx.notification.create({ data: { userId: parentUserId, type: 'interview_scheduled', title: 'Interview Scheduled', message: `Your interview at ${admin.school.name} is on ${new Date(interviewDate).toDateString()} at ${interviewTime}.`, data: { ticketId: ticket.id, venue } } });
     return ticket;
   });
 
-  emitToUser(app.studentProfileId, 'interview_scheduled', { ticketId: result.id, schoolName: admin.school.name, date: interviewDate, time: interviewTime });
+  emitToUser(parentUserId, 'interview_scheduled', { ticketId: result.id, schoolName: admin.school.name, date: interviewDate, time: interviewTime });
   logAudit(req.user!.id, 'INTERVIEW_SCHEDULED', 'interview_ticket', result.id, { applicationId, interviewDate, interviewTime });
   created(res, result, 'Interview scheduled successfully');
 }));
@@ -69,10 +70,10 @@ router.put('/interviews/:id/attendance', asyncHandler(async (req: AuthRequest, r
   if (!admin) throw new NotFoundError('School admin not found');
   const { status } = req.body;
   const ticket = await prisma.interviewTicket.updateMany({
-    where: { id: req.params.id as string as string, schoolId: admin.schoolId },
+    where: { id: req.params.id as string, schoolId: admin.schoolId },
     data: { status },
   });
-  logAudit(req.user!.id, 'ATTENDANCE_UPDATED', 'interview_ticket', req.params.id as string as string, { status });
+  logAudit(req.user!.id, 'ATTENDANCE_UPDATED', 'interview_ticket', req.params.id as string, { status });
   success(res, ticket, 'Attendance updated');
 }));
 

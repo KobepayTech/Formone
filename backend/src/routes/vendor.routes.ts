@@ -9,6 +9,8 @@ import { emitToUser, emitToSchool } from '../services/socket';
 import { logAudit } from '../services/audit';
 import { sendPaymentConfirmationEmail } from '../services/email';
 import { NotFoundError, BadRequestError } from '../utils/errors';
+import { validate } from '../middleware/validate';
+import { confirmPaymentSchema } from '../validators/schemas';
 
 const router = Router();
 router.use(authenticate, authorize('vendor'));
@@ -36,7 +38,7 @@ router.get('/queue', asyncHandler(async (req: AuthRequest, res) => {
   success(res, apps);
 }));
 
-router.post('/confirm-payment', paymentLimiter, asyncHandler(async (req: AuthRequest, res) => {
+router.post('/confirm-payment', paymentLimiter, validate(confirmPaymentSchema), asyncHandler(async (req: AuthRequest, res) => {
   const { applicationId, amountTendered, paymentMethod, notes } = req.body;
   const vendor = await prisma.vendor.findUnique({ where: { userId: req.user!.id as string } });
   if (!vendor) throw new NotFoundError('Vendor not found');
@@ -46,6 +48,11 @@ router.post('/confirm-payment', paymentLimiter, asyncHandler(async (req: AuthReq
     if (!app) throw new NotFoundError('Application not found');
     if (app.paymentStatus === 'completed') throw new BadRequestError('Payment already confirmed');
     if (vendor.tokenBalance < 10) throw new BadRequestError('Insufficient tokens. Minimum 10 tokens required.');
+    if (amountTendered < app.totalAmount) throw new BadRequestError('Amount tendered is less than the total due');
+
+    const studentProfile = await tx.studentProfile.findUnique({ where: { id: app.studentProfileId }, select: { userId: true } });
+    if (!studentProfile) throw new NotFoundError('Student profile not found');
+    const parentUserId = studentProfile.userId;
 
     const updatedApp = await tx.application.update({
       where: { id: app.id },
@@ -54,8 +61,11 @@ router.post('/confirm-payment', paymentLimiter, asyncHandler(async (req: AuthReq
 
     await tx.vendor.update({ where: { id: vendor.id }, data: { tokenBalance: { decrement: 10 }, totalCollections: { increment: 1 } } });
 
+    const platformCommission = Math.round(app.totalAmount * vendor.commissionRate);
+    const schoolRevenue = app.totalAmount - platformCommission;
+
     await tx.transaction.create({
-      data: { transactionId: `TXN-${Date.now()}`, applicationId: app.id, schoolId: app.schoolId, baseAmount: app.baseAmount, discountApplied: app.discountAmount, taxAmount: app.taxAmount, totalAmount: app.totalAmount, platformCommission: app.totalAmount * 0.2, schoolRevenue: app.totalAmount * 0.8, paymentMethod, paymentStatus: 'completed', vendorId: vendor.id, processedBy: req.user!.id },
+      data: { transactionId: `TXN-${Date.now()}`, applicationId: app.id, schoolId: app.schoolId, baseAmount: app.baseAmount, discountApplied: app.discountAmount, taxAmount: app.taxAmount, totalAmount: app.totalAmount, platformCommission, schoolRevenue, paymentMethod, paymentStatus: 'completed', vendorId: vendor.id, processedBy: req.user!.id },
     });
 
     const school = await tx.school.findUnique({ where: { id: app.schoolId } });
@@ -67,13 +77,13 @@ router.post('/confirm-payment', paymentLimiter, asyncHandler(async (req: AuthReq
       data: { ticketNumber, applicationId: app.id, studentProfileId: app.studentProfileId, schoolId: app.schoolId, interviewDate, interviewTime: '10:00', venue: school?.address || 'TBD', instructions: 'Please arrive 30 minutes before your scheduled time.', ticketQrCode: qrCode },
     });
 
-    await tx.notification.create({ data: { userId: app.studentProfileId, type: 'payment_confirmed', title: 'Payment Confirmed', message: `Payment of ${app.totalAmount} TZS confirmed. Interview ticket generated.`, data: { applicationId: app.id, amount: app.totalAmount } } });
-    await tx.notification.create({ data: { userId: app.studentProfileId, type: 'ticket_generated', title: 'Interview Ticket Ready', message: `Your interview at ${school?.name} is scheduled for ${interviewDate.toDateString()}.`, data: { ticketId: ticket.id, schoolName: school?.name } } });
+    await tx.notification.create({ data: { userId: parentUserId, type: 'payment_confirmed', title: 'Payment Confirmed', message: `Payment of ${app.totalAmount} TZS confirmed. Interview ticket generated.`, data: { applicationId: app.id, amount: app.totalAmount } } });
+    await tx.notification.create({ data: { userId: parentUserId, type: 'ticket_generated', title: 'Interview Ticket Ready', message: `Your interview at ${school?.name} is scheduled for ${interviewDate.toDateString()}.`, data: { ticketId: ticket.id, schoolName: school?.name } } });
 
-    return { application: updatedApp, ticket, change: amountTendered - app.totalAmount, schoolName: school?.name };
+    return { application: updatedApp, ticket, change: amountTendered - app.totalAmount, schoolName: school?.name, parentUserId };
   });
 
-  emitToUser(result.application.studentProfileId, 'payment_confirmed', { applicationId, amount: result.application.totalAmount });
+  emitToUser(result.parentUserId, 'payment_confirmed', { applicationId, amount: result.application.totalAmount });
   emitToSchool(result.application.schoolId, 'new_paid_application', { applicationId, studentProfileId: result.application.studentProfileId });
   logAudit(req.user!.id, 'PAYMENT_CONFIRMED', 'application', applicationId, { amount: result.application.totalAmount, change: result.change });
 
@@ -96,7 +106,7 @@ router.get('/tickets', asyncHandler(async (req: AuthRequest, res) => {
 
 router.post('/tickets/:id/print', asyncHandler(async (req: AuthRequest, res) => {
   const ticket = await prisma.interviewTicket.update({
-    where: { id: req.params.id as string as string },
+    where: { id: req.params.id as string },
     data: { printedByVendor: true, printedAt: new Date(), printCount: { increment: 1 } },
   });
   logAudit(req.user!.id, 'TICKET_PRINTED', 'interview_ticket', ticket.id);

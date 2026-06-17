@@ -7,6 +7,8 @@ import { asyncHandler } from '../utils/asyncHandler';
 import { success, created } from '../utils/response';
 import { UnauthorizedError, BadRequestError } from '../utils/errors';
 import { authLimiter } from '../middleware/rateLimiter';
+import { validate } from '../middleware/validate';
+import { registerSchema, loginSchema, vendorLoginSchema, schoolLoginSchema, refreshSchema } from '../validators/schemas';
 
 const router = Router();
 
@@ -16,7 +18,7 @@ const generateTokens = (userId: string, email: string, role: string) => {
   return { accessToken, refreshToken };
 };
 
-router.post('/register', authLimiter, asyncHandler(async (req, res) => {
+router.post('/register', authLimiter, validate(registerSchema), asyncHandler(async (req, res) => {
   const { email, phone, password, firstName, lastName, dateOfBirth, gender, bloodGroup, address, city, state, parentName, parentPhone, parentEmail } = req.body;
   const existing = await prisma.user.findFirst({ where: { OR: [{ email }, { phone }] } });
   if (existing) throw new BadRequestError('Email or phone already registered');
@@ -33,7 +35,7 @@ router.post('/register', authLimiter, asyncHandler(async (req, res) => {
   created(res, { user: { id: user.id, email: user.email, role: user.role }, studentProfile, tokens }, 'Registration successful');
 }));
 
-router.post('/login', authLimiter, asyncHandler(async (req, res) => {
+router.post('/login', authLimiter, validate(loginSchema), asyncHandler(async (req, res) => {
   const { email, password, role } = req.body;
   const user = await prisma.user.findFirst({ where: { email, role } });
   if (!user) throw new UnauthorizedError('Invalid credentials');
@@ -45,7 +47,7 @@ router.post('/login', authLimiter, asyncHandler(async (req, res) => {
   success(res, { user: { id: user.id, email: user.email, role: user.role }, tokens });
 }));
 
-router.post('/vendor/login', authLimiter, asyncHandler(async (req, res) => {
+router.post('/vendor/login', authLimiter, validate(vendorLoginSchema), asyncHandler(async (req, res) => {
   const { vendorId, pin } = req.body;
   const vendor = await prisma.vendor.findUnique({ where: { vendorId }, include: { user: true } });
   if (!vendor) throw new UnauthorizedError('Invalid vendor ID');
@@ -58,7 +60,7 @@ router.post('/vendor/login', authLimiter, asyncHandler(async (req, res) => {
   success(res, { vendor: { id: vendor.id, vendorId: vendor.vendorId, name: vendor.name, tokenBalance: vendor.tokenBalance }, tokens });
 }));
 
-router.post('/school/login', authLimiter, asyncHandler(async (req, res) => {
+router.post('/school/login', authLimiter, validate(schoolLoginSchema), asyncHandler(async (req, res) => {
   const { schoolCode, boardType, adminId, password } = req.body;
   const school = await prisma.school.findFirst({ where: { code: schoolCode, boardType } });
   if (!school) throw new UnauthorizedError('Invalid school');
@@ -72,14 +74,14 @@ router.post('/school/login', authLimiter, asyncHandler(async (req, res) => {
   success(res, { school: { id: school.id, name: school.name, code: school.code, boardType: school.boardType }, admin: { id: admin.id, position: admin.position }, tokens });
 }));
 
-router.post('/refresh', asyncHandler(async (req, res) => {
+router.post('/refresh', validate(refreshSchema), asyncHandler(async (req, res) => {
   const { refreshToken } = req.body;
-  if (!refreshToken) throw new BadRequestError('Refresh token required');
   const decoded = jwt.verify(refreshToken, env.JWT_REFRESH_SECRET) as { userId: string };
   const tokenRecord = await prisma.refreshToken.findUnique({ where: { token: refreshToken } });
   if (!tokenRecord || tokenRecord.expiresAt < new Date()) throw new UnauthorizedError('Invalid or expired refresh token');
   const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
   if (!user) throw new UnauthorizedError('User not found');
+  if (user.status !== 'active') throw new UnauthorizedError('User account is not active');
   const accessToken = jwt.sign({ userId: user.id, email: user.email, role: user.role }, env.JWT_SECRET, { expiresIn: env.JWT_ACCESS_EXPIRY as any });
   success(res, { accessToken });
 }));

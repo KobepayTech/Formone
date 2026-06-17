@@ -23,11 +23,11 @@ app.get('/health', (req, res) => {
 });
 
 import routes from './routes';
-app.use('/api/v2', routes);
+app.use('/api/v2', generalLimiter, routes);
 
-app.use(errorHandler);
 app.use((req, res) => {
   res.status(404).json({ success: false, error: 'Route not found' });
 });
+app.use(errorHandler);
 
 export default app;

@@ -33,7 +33,7 @@ router.get('/', asyncHandler(async (req, res) => {
 
 router.get('/:id', asyncHandler(async (req, res) => {
   const school = await prisma.school.findUnique({
-    where: { id: req.params.id as string as string },
+    where: { id: req.params.id as string },
     include: { formCatalog: { where: { isActive: true } }, pricingRules: { where: { isActive: true } } },
   });
   if (!school) throw new Error('School not found');
