@@ -60,8 +60,9 @@ const StatusBadge: FC<StatusBadgeProps> = ({ status, type }) => {
         }
       case 'ticket':
         switch (status) {
+          case 'valid':
           case 'generated':
-            return 'bg-info-50 text-info-500';
+            return 'bg-success-50 text-success-500';
           case 'printed':
             return 'bg-success-50 text-success-500';
           case 'downloaded':
@@ -69,6 +70,8 @@ const StatusBadge: FC<StatusBadgeProps> = ({ status, type }) => {
           case 'used':
             return 'bg-gray-100 text-gray-600';
           case 'expired':
+            return 'bg-error-50 text-error-500';
+          case 'cancelled':
             return 'bg-error-50 text-error-500';
           default:
             return 'bg-gray-100 text-gray-600';
@@ -111,11 +114,13 @@ const StatusBadge: FC<StatusBadgeProps> = ({ status, type }) => {
         }
       case 'ticket':
         switch (status) {
+          case 'valid': return 'Valid';
           case 'generated': return 'Generated';
           case 'printed': return 'Printed';
           case 'downloaded': return 'Downloaded';
           case 'used': return 'Used';
           case 'expired': return 'Expired';
+          case 'cancelled': return 'Cancelled';
           default: return status;
         }
       default:

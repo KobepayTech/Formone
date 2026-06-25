@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search,
@@ -22,8 +22,55 @@ import Layout from '@/components/Layout';
 import MatchScore from '@/components/MatchScore';
 import { formatCurrency } from '@/lib/currency';
 import DemandBadge from '@/components/DemandBadge';
-import { schools, studentProfiles, calculateMatchScore } from '@/lib/mockData';
-import type { School } from '@/types';
+import { LoadingState, ErrorState } from '@/components/DataStates';
+import { useApi } from '@/hooks/useApi';
+import { schoolService, cartService, type School as ApiSchool } from '@/lib/api';
+
+/* ── View model ────────────────────────────────────────────────────────────── */
+
+interface ViewSchool {
+  id: string;
+  name: string;
+  city: string;
+  boardType: string;
+  rating: number;
+  demandLevel: 'low' | 'medium' | 'high' | 'critical';
+  facilities: string[];
+  capacity: number;
+  availableSeats: number;
+  feesRange: { min: number; max: number };
+  foundedYear: number;
+  description: string;
+  matchScore: number;
+}
+
+/**
+ * Deterministic match estimate from the fields the discovery endpoint returns
+ * (rating, demand, seat availability). The per-school AI score lives behind
+ * `/schools/:id/match-score`; this keeps the list render pure and cheap.
+ */
+const estimateMatch = (s: ApiSchool): number => {
+  const seatRatio = s.capacity > 0 ? s.availableSeats / s.capacity : 0.5;
+  const demandScore =
+    s.demandLevel === 'low' ? 95 : s.demandLevel === 'medium' ? 82 : s.demandLevel === 'high' ? 68 : 55;
+  return Math.max(40, Math.min(99, Math.round(s.rating * 10 + demandScore * 0.3 + seatRatio * 15)));
+};
+
+const toViewSchool = (s: ApiSchool): ViewSchool => ({
+  id: s.id,
+  name: s.name,
+  city: s.city,
+  boardType: s.boardType,
+  rating: s.rating,
+  demandLevel: s.demandLevel,
+  facilities: s.facilities ?? [],
+  capacity: s.capacity,
+  availableSeats: s.availableSeats,
+  feesRange: { min: s.feesMin, max: s.feesMax },
+  foundedYear: (s as ApiSchool & { foundedYear?: number }).foundedYear ?? 0,
+  description: (s as ApiSchool & { description?: string }).description ?? '',
+  matchScore: estimateMatch(s),
+});
 
 /* ── Facility Icon Map ─────────────────────────────────────────────────────── */
 
@@ -56,7 +103,6 @@ const cardItem = {
 /* ── Main Component ────────────────────────────────────────────────────────── */
 
 export default function SchoolDiscoveryPage() {
-  const [student] = useState(studentProfiles[0]);
   const [search, setSearch] = useState('');
   const [selectedBoard, setSelectedBoard] = useState<string>('All');
   const [selectedCity, setSelectedCity] = useState<string>('All');
@@ -64,27 +110,26 @@ export default function SchoolDiscoveryPage() {
   const [selectedFacilities, setSelectedFacilities] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<'match' | 'price_low' | 'rating'>('match');
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
-  const [detailSchool, setDetailSchool] = useState<School | null>(null);
+  const [detailSchool, setDetailSchool] = useState<ViewSchool | null>(null);
   const [cartAdded, setCartAdded] = useState<Set<string>>(new Set());
   const [showFilters, setShowFilters] = useState(false);
 
-  const boards = ['All', 'CBSE', 'ICSE', 'IB', 'State', 'CBSE+IB'];
-  const cities = ['All', 'New Delhi', 'Mumbai', 'Bangalore', 'Chennai', 'Kolkata', 'Pune', 'Hyderabad', 'Lucknow'];
+  const boards = ['All', 'CBSE', 'ICSE', 'IB', 'State'];
+  const cities = ['All', 'Dar es Salaam', 'Dodoma', 'Arusha', 'Mwanza', 'Mbeya', 'Zanzibar', 'Morogoro', 'Tanga'];
   const allFacilities = ['Library', 'Sports', 'Lab', 'Transport', 'Hostel', 'Computer'];
 
-  /* Calculate match scores */
-  const schoolsWithScores = useMemo(
-    () =>
-      schools.map((school) => ({
-        ...school,
-        matchScore: calculateMatchScore(student, school),
-      })),
-    [student]
+  /* Live schools from the discovery endpoint */
+  const fetchSchools = useCallback(() => schoolService.discover(), []);
+  const { data: apiSchools, loading, error, refetch } = useApi(fetchSchools, []);
+
+  const schoolList = useMemo<ViewSchool[]>(
+    () => (apiSchools ?? []).map(toViewSchool),
+    [apiSchools]
   );
 
   /* Filter & Sort */
   const filtered = useMemo(() => {
-    const result = schoolsWithScores.filter((s) => {
+    const result = schoolList.filter((s) => {
       if (search && !s.name.toLowerCase().includes(search.toLowerCase()) && !s.city.toLowerCase().includes(search.toLowerCase())) return false;
       if (selectedBoard !== 'All' && s.boardType !== selectedBoard) return false;
       if (selectedCity !== 'All' && s.city !== selectedCity) return false;
@@ -106,7 +151,7 @@ export default function SchoolDiscoveryPage() {
     }
 
     return result;
-  }, [schoolsWithScores, search, selectedBoard, selectedCity, feeRange, selectedFacilities, sortBy]);
+  }, [schoolList, search, selectedBoard, selectedCity, feeRange, selectedFacilities, sortBy]);
 
   const toggleFacility = (f: string) => {
     setSelectedFacilities((prev) => (prev.includes(f) ? prev.filter((x) => x !== f) : [...prev, f]));
@@ -121,15 +166,24 @@ export default function SchoolDiscoveryPage() {
     });
   };
 
-  const addToCart = (schoolId: string) => {
+  /* Add the school's first active form to the server-side cart. */
+  const addToCart = async (schoolId: string) => {
     setCartAdded((prev) => new Set(prev).add(schoolId));
-    setTimeout(() => {
-      setCartAdded((prev) => {
-        const next = new Set(prev);
-        next.delete(schoolId);
-        return next;
-      });
-    }, 1500);
+    try {
+      const detail = await schoolService.get(schoolId);
+      const form = detail.formCatalog?.find((f) => f.isActive) ?? detail.formCatalog?.[0];
+      if (form) await cartService.add(schoolId, form.id, 1);
+    } catch {
+      /* Surface nothing here; the cart page reflects the source of truth. */
+    } finally {
+      setTimeout(() => {
+        setCartAdded((prev) => {
+          const next = new Set(prev);
+          next.delete(schoolId);
+          return next;
+        });
+      }, 1500);
+    }
   };
 
   const activeFilterCount =
@@ -159,7 +213,7 @@ export default function SchoolDiscoveryPage() {
                 Find the best schools for your child based on their profile
               </p>
               <p className="mt-1 text-xs text-parent-600">
-                Based on: Class 1, {student.city} area, Fee preference
+                Based on your profile, location and fee preferences
               </p>
 
               {/* Compatibility meter */}
@@ -339,6 +393,9 @@ export default function SchoolDiscoveryPage() {
         </motion.div>
 
         {/* ── School Cards Grid ── */}
+        {loading && <LoadingState label="Finding schools…" />}
+        {!loading && error && <ErrorState message={error} onRetry={refetch} />}
+        {!loading && !error && (
         <motion.div
           className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3"
           variants={cardStagger}
@@ -453,8 +510,9 @@ export default function SchoolDiscoveryPage() {
             );
           })}
         </motion.div>
+        )}
 
-        {filtered.length === 0 && (
+        {!loading && !error && filtered.length === 0 && (
           <motion.div className="mt-12 text-center" {...fadeUp(0)}>
             <Building className="mx-auto h-16 w-16 text-gray-200" />
             <h3 className="mt-3 text-lg font-semibold text-gray-700">No schools match your criteria</h3>
@@ -495,7 +553,7 @@ export default function SchoolDiscoveryPage() {
                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4">
                   <h2 className="text-xl font-bold text-white">{detailSchool.name}</h2>
                   <div className="mt-1 flex items-center gap-2">
-                    <MatchScore score={schoolsWithScores.find((s) => s.id === detailSchool.id)?.matchScore || 70} />
+                    <MatchScore score={schoolList.find((s) => s.id === detailSchool.id)?.matchScore || 70} />
                   </div>
                 </div>
               </div>

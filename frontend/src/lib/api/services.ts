@@ -2,8 +2,11 @@
 import { api, tokenStore } from './client';
 import type {
   Application,
+  CartResponse,
+  CheckoutResult,
   FormCatalogItem,
   LoginResponse,
+  ParentTicket,
   School,
   SchoolLoginResponse,
   UserRole,
@@ -54,17 +57,21 @@ export const schoolService = {
 
 export const parentService = {
   applications: () => api.get<Application[]>('/parent/applications'),
-  tickets: () => api.get('/parent/tickets'),
+  tickets: () => api.get<ParentTicket[]>('/parent/tickets'),
   documents: (studentProfileId: string) =>
     api.get(`/parent/documents?studentProfileId=${encodeURIComponent(studentProfileId)}`),
 };
 
 export const cartService = {
   add: (schoolId: string, formCatalogItemId: string, quantity = 1) =>
-    api.post('/cart/add', { schoolId, formCatalogItemId, quantity }),
-  get: () => api.get('/cart'),
-  remove: (itemId: string) => api.delete(`/cart/${itemId}`),
-  checkout: () => api.post('/cart/checkout'),
+    api.post<{ items: CartResponse['items']; itemCount: number }>('/cart/add', {
+      schoolId,
+      formCatalogItemId,
+      quantity,
+    }),
+  get: () => api.get<CartResponse>('/cart'),
+  remove: (itemId: string) => api.delete<CartResponse>(`/cart/${itemId}`),
+  checkout: () => api.post<CheckoutResult>('/cart/checkout'),
 };
 
 export const vendorService = {

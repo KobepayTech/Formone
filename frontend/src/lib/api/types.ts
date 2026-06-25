@@ -103,6 +103,53 @@ export interface Application {
   createdAt: string;
 }
 
+export interface CartPricing {
+  basePrice: number;
+  surgeMultiplier: number;
+  surgeAmount: number;
+  bulkDiscountPercent: number;
+  bulkDiscountAmount: number;
+  taxPercent: number;
+  taxAmount: number;
+  finalPrice: number;
+  totalSavings: number;
+}
+
+export interface CartItem {
+  id: string;
+  schoolId: string;
+  formCatalogItemId: string;
+  quantity: number;
+  schoolName: string;
+  formName: string;
+  pricing: CartPricing;
+}
+
+export interface CartResponse {
+  items: CartItem[];
+  total: number;
+  count: number;
+}
+
+export interface CheckoutResult {
+  applications: Application[];
+  totalAmount: number;
+}
+
+export interface ParentTicket {
+  id: string;
+  ticketNumber: string;
+  interviewDate: string;
+  interviewTime: string;
+  venue: string;
+  room?: string | null;
+  instructions?: string | null;
+  ticketQrCode?: string | null;
+  status: TicketStatus;
+  school: { name: string; city: string };
+  application: { formType: FormType };
+}
+
 export interface PaginationMeta {
   page: number;
   limit: number;

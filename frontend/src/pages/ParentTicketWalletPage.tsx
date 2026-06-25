@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
 import {
@@ -17,7 +17,16 @@ import {
 import { Link } from 'react-router';
 import Layout from '@/components/Layout';
 import StatusBadge from '@/components/StatusBadge';
-import { interviewTickets, studentProfiles } from '@/lib/mockData';
+import { LoadingState, ErrorState } from '@/components/DataStates';
+import { useApi } from '@/hooks/useApi';
+import { parentService, type ParentTicket } from '@/lib/api';
+
+const formTypeLabel: Record<string, string> = {
+  admission: 'Admission',
+  transfer: 'Transfer',
+  scholarship: 'Scholarship',
+  exam: 'Exam',
+};
 
 /* ── Animations ────────────────────────────────────────────────────────────── */
 
@@ -43,7 +52,8 @@ type FilterTab = 'all' | 'valid' | 'used' | 'expired';
 const getTicketStatusCategory = (status: string): 'valid' | 'used' | 'expired' => {
   switch (status) {
     case 'used': return 'used';
-    case 'expired': return 'expired';
+    case 'expired':
+    case 'cancelled': return 'expired';
     default: return 'valid';
   }
 };
@@ -57,14 +67,12 @@ const statusBorderColor: Record<string, string> = {
 /* ── Main Component ────────────────────────────────────────────────────────── */
 
 export default function ParentTicketWalletPage() {
-  const [student] = useState(studentProfiles[0]);
   const [activeTab, setActiveTab] = useState<FilterTab>('all');
-  const [selectedTicket, setSelectedTicket] = useState<typeof interviewTickets[0] | null>(null);
+  const [selectedTicket, setSelectedTicket] = useState<ParentTicket | null>(null);
 
-  const tickets = useMemo(
-    () => interviewTickets.filter((t) => t.studentId === student.id),
-    [student.id]
-  );
+  const fetchTickets = useCallback(() => parentService.tickets(), []);
+  const { data, loading, error, refetch } = useApi<ParentTicket[]>(fetchTickets, []);
+  const tickets = useMemo(() => data ?? [], [data]);
 
   const filtered = useMemo(() => {
     if (activeTab === 'all') return tickets;
@@ -84,6 +92,22 @@ export default function ParentTicketWalletPage() {
     { key: 'used', label: `Past (${counts.used})` },
     { key: 'expired', label: `Expired (${counts.expired})` },
   ];
+
+  if (loading) {
+    return (
+      <Layout zone="parent">
+        <LoadingState label="Loading your tickets…" />
+      </Layout>
+    );
+  }
+
+  if (error) {
+    return (
+      <Layout zone="parent">
+        <ErrorState message={error} onRetry={refetch} />
+      </Layout>
+    );
+  }
 
   if (tickets.length === 0) {
     return (
@@ -164,7 +188,7 @@ export default function ParentTicketWalletPage() {
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-2">
                           <Building2 className="h-5 w-5 text-parent-500" />
-                          <h3 className="text-base font-semibold text-gray-900">{ticket.schoolName}</h3>
+                          <h3 className="text-base font-semibold text-gray-900">{ticket.school.name}</h3>
                         </div>
                         <StatusBadge status={ticket.status} type="ticket" />
                       </div>
@@ -195,11 +219,13 @@ export default function ParentTicketWalletPage() {
 
                       {/* Form info */}
                       <p className="mt-3 text-xs text-gray-500">
-                        Form: Class 1 Admission · Board: {ticket.schoolName.includes('ICSE') ? 'ICSE' : ticket.schoolName.includes('IB') ? 'IB' : 'CBSE'}
+                        Form: {formTypeLabel[ticket.application.formType] ?? ticket.application.formType} · {ticket.school.city}
                       </p>
 
                       {/* Instructions */}
-                      <p className="mt-1.5 text-xs text-gray-400 italic">{ticket.instructions}</p>
+                      {ticket.instructions && (
+                        <p className="mt-1.5 text-xs text-gray-400 italic">{ticket.instructions}</p>
+                      )}
 
                       {/* Actions (mobile only) */}
                       <div className="mt-3 flex flex-wrap gap-2 sm:hidden">
@@ -224,7 +250,7 @@ export default function ParentTicketWalletPage() {
                         onClick={() => setSelectedTicket(ticket)}
                       >
                         <div className={`rounded-xl bg-white p-2 shadow-sm ${isExpired ? 'grayscale' : ''}`}>
-                          <QRCodeSVG value={ticket.ticketQrCode} size={90} level="M" />
+                          <QRCodeSVG value={ticket.ticketQrCode || ticket.ticketNumber} size={90} level="M" />
                         </div>
                         {isUsed && (
                           <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-white/70">
@@ -298,7 +324,7 @@ export default function ParentTicketWalletPage() {
                   <X className="h-4 w-4" />
                 </button>
                 <Ticket className="mb-2 h-6 w-6" />
-                <h3 className="text-lg font-bold">{selectedTicket.schoolName}</h3>
+                <h3 className="text-lg font-bold">{selectedTicket.school.name}</h3>
                 <p className="mt-0.5 text-sm text-white/80">Official Interview Ticket</p>
               </div>
 
@@ -306,7 +332,7 @@ export default function ParentTicketWalletPage() {
                 {/* Large QR */}
                 <div className="flex justify-center">
                   <div className="rounded-2xl bg-white p-4 shadow-[0_0_30px_rgba(59,130,246,0.1)]">
-                    <QRCodeSVG value={selectedTicket.ticketQrCode} size={200} level="H" />
+                    <QRCodeSVG value={selectedTicket.ticketQrCode || selectedTicket.ticketNumber} size={200} level="H" />
                   </div>
                 </div>
 
