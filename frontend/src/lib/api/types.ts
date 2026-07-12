@@ -150,6 +150,45 @@ export interface ParentTicket {
   application: { formType: FormType };
 }
 
+export interface VendorDashboard {
+  todayCollections: number;
+  todayCount: number;
+  pendingCount: number;
+  ticketsToday: number;
+  tokenBalance: number;
+}
+
+export interface VendorQueueItem {
+  id: string;
+  submissionId: string;
+  totalAmount: number;
+  createdAt: string;
+  studentProfile: {
+    firstName: string;
+    lastName: string;
+    universalStudentId: string;
+    parentName: string;
+    parentPhone: string;
+  };
+  school: { name: string; city: string };
+}
+
+export interface VendorTransaction {
+  id: string;
+  transactionId: string;
+  totalAmount: number;
+  paymentMethod: string;
+  createdAt: string;
+  school?: { name: string } | null;
+}
+
+export interface ConfirmPaymentResult {
+  application: { id: string; totalAmount: number; schoolId: string };
+  ticket: { id: string; ticketNumber: string };
+  change: number;
+  message: string;
+}
+
 export interface PaginationMeta {
   page: number;
   limit: number;

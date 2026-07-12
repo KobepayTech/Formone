@@ -1,7 +1,7 @@
-import { useState, type FC } from 'react';
+import { useState, useEffect, useCallback, type FC } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  IndianRupee,
+  Banknote,
   CheckCircle2,
   ArrowRight,
   Printer,
@@ -13,8 +13,13 @@ import {
   CircleDot,
 } from 'lucide-react';
 import Layout from '@/components/Layout';
-import { applications, vendors } from '@/lib/mockData';
 import { formatCurrency } from '@/lib/currency';
+import { LoadingState, ErrorState } from '@/components/DataStates';
+import { useApi } from '@/hooks/useApi';
+import { vendorService, ApiError, type VendorQueueItem } from '@/lib/api';
+
+/** Flat token cost per confirmed payment (matches the backend). */
+const TOKEN_COST = 10;
 
 /* ── Types ── */
 interface QueueItem {
@@ -39,43 +44,19 @@ interface CompletedTxn {
   time: string;
 }
 
-/* ── Build queue from pending applications ── */
-const buildQueue = (): QueueItem[] => {
-  const pending = applications.filter(
-    (a) => a.paymentStatus === 'pending' && (a.status === 'pending_payment' || a.status === 'submitted')
-  );
-
-  const schoolPrices: Record<string, number> = {
-    sch_001: 500, sch_002: 650, sch_003: 1200, sch_004: 350,
-    sch_005: 300, sch_006: 750, sch_007: 200, sch_008: 1500,
-  };
-
-  const parentNames = ['Rahul Sharma', 'Priya Patel', 'Vikram Singh', 'Sunita Devi', 'Amit Kumar', 'Meera Joshi', 'Rajesh Gupta', 'Deepa Reddy'];
-  const parentPhones = ['+91 98765 43210', '+91 98765 43211', '+91 98765 43212', '+91 98765 43213', '+91 98765 43214', '+91 98765 43215', '+91 98765 43216', '+91 98765 43217'];
-
-  return pending.map((app, i) => ({
-    id: app.id,
-    submissionId: app.submissionId,
-    parentName: parentNames[i % parentNames.length],
-    parentPhone: parentPhones[i % parentPhones.length],
-    studentName: app.studentName,
-    studentId: app.studentId,
-    schools: [{ name: app.schoolName, price: schoolPrices[app.schoolId] || app.totalAmount }],
-    totalAmount: app.totalAmount || schoolPrices[app.schoolId] || 500,
-    tokenCost: Math.ceil((app.totalAmount || 500) / 10),
-    status: i === 0 ? 'Waiting' : 'Waiting',
-    time: new Date(Date.now() - i * 60000 * (i + 1)).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
-  }));
-};
-
-/* ── Predefined completed transactions ── */
-const initialCompleted: CompletedTxn[] = [
-  { id: '1', parentName: 'Sunita Devi', amount: 200, change: 0, time: '14:10:45' },
-  { id: '2', parentName: 'Amit Kumar', amount: 890, change: 110, time: '13:58:21' },
-  { id: '3', parentName: 'Meera Joshi', amount: 350, change: 150, time: '13:45:10' },
-  { id: '4', parentName: 'Rajesh Gupta', amount: 500, change: 0, time: '13:30:05' },
-  { id: '5', parentName: 'Deepa Reddy', amount: 750, change: 250, time: '13:15:22' },
-];
+const toQueueItem = (app: VendorQueueItem): QueueItem => ({
+  id: app.id,
+  submissionId: app.submissionId,
+  parentName: app.studentProfile.parentName,
+  parentPhone: app.studentProfile.parentPhone,
+  studentName: `${app.studentProfile.firstName} ${app.studentProfile.lastName}`,
+  studentId: app.studentProfile.universalStudentId,
+  schools: [{ name: app.school.name, price: app.totalAmount }],
+  totalAmount: app.totalAmount,
+  tokenCost: TOKEN_COST,
+  status: 'Waiting',
+  time: new Date(app.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+});
 
 /* ── Receipt Component ── */
 const ReceiptCard: FC<{
@@ -187,15 +168,33 @@ const ReceiptCard: FC<{
 
 /* ── Main Page Component ── */
 const VendorPaymentTerminalPage: FC = () => {
-  const [queue, setQueue] = useState<QueueItem[]>(buildQueue);
-  const [selectedId, setSelectedId] = useState<string>(buildQueue()[0]?.id || '');
+  const fetchQueue = useCallback(() => vendorService.queue(), []);
+  const { data: queueData, loading, error, refetch } = useApi<VendorQueueItem[]>(fetchQueue, []);
+  const { data: dashboard } = useApi(useCallback(() => vendorService.dashboard(), []), []);
+
+  const [queue, setQueue] = useState<QueueItem[]>([]);
+  const [selectedId, setSelectedId] = useState<string>('');
   const [cashTendered, setCashTendered] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
-  const [tokenBalance, setTokenBalance] = useState(vendors[0].tokenBalance);
+  const [tokenBalance, setTokenBalance] = useState(0);
   const [batchMode, setBatchMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [completedTxns, setCompletedTxns] = useState<CompletedTxn[]>(initialCompleted);
+  const [completedTxns, setCompletedTxns] = useState<CompletedTxn[]>([]);
+  const [confirmError, setConfirmError] = useState('');
+
+  // Seed the working queue and default selection once data arrives.
+  useEffect(() => {
+    if (queueData) {
+      const mapped = queueData.map(toQueueItem);
+      setQueue(mapped);
+      setSelectedId((prev) => prev || mapped[0]?.id || '');
+    }
+  }, [queueData]);
+
+  useEffect(() => {
+    if (dashboard) setTokenBalance(dashboard.tokenBalance);
+  }, [dashboard]);
 
   const selectedItem = queue.find((q) => q.id === selectedId) || queue[0];
 
@@ -211,6 +210,7 @@ const VendorPaymentTerminalPage: FC = () => {
       setSelectedId(id);
       setShowSuccess(false);
       setCashTendered('');
+      setConfirmError('');
     }
   };
 
@@ -221,29 +221,52 @@ const VendorPaymentTerminalPage: FC = () => {
   const change = Math.max(0, tenderedNum - totalAmount);
   const isExact = tenderedNum >= totalAmount && totalAmount > 0;
 
+  const appendCompleted = (item: QueueItem, itemChange: number) => {
+    setCompletedTxns((prev) => [
+      {
+        id: `${item.id}-${prev.length}`,
+        parentName: item.parentName,
+        amount: item.totalAmount,
+        change: itemChange,
+        time: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      },
+      ...prev.slice(0, 4),
+    ]);
+  };
+
   const handleConfirm = async () => {
     if (!isExact) return;
+    setConfirmError('');
     setIsProcessing(true);
-
-    // Simulate processing
-    await new Promise((r) => setTimeout(r, 800));
-
-    setIsProcessing(false);
-    setShowSuccess(true);
-    setTokenBalance((b) => Math.max(0, b - (selectedItem?.tokenCost || 0)));
-
-    // Add to completed transactions
-    if (selectedItem) {
-      setCompletedTxns((prev) => [
-        {
-          id: Date.now().toString(),
-          parentName: selectedItem.parentName,
-          amount: selectedItem.totalAmount,
-          change,
-          time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }),
-        },
-        ...prev.slice(0, 4),
-      ]);
+    try {
+      if (batchMode) {
+        const targets = queue.filter((q) => selectedIds.has(q.id));
+        for (const t of targets) {
+          const res = await vendorService.confirmPayment({
+            applicationId: t.id,
+            amountTendered: t.totalAmount,
+            paymentMethod: 'cash',
+          });
+          appendCompleted(t, res.change);
+        }
+        setTokenBalance((b) => Math.max(0, b - targets.length * TOKEN_COST));
+        setQueue((prev) => prev.filter((q) => !selectedIds.has(q.id)));
+        setSelectedIds(new Set());
+        setShowSuccess(true);
+      } else if (selectedItem) {
+        const res = await vendorService.confirmPayment({
+          applicationId: selectedItem.id,
+          amountTendered: tenderedNum,
+          paymentMethod: 'cash',
+        });
+        setTokenBalance((b) => Math.max(0, b - TOKEN_COST));
+        appendCompleted(selectedItem, res.change);
+        setShowSuccess(true);
+      }
+    } catch (err) {
+      setConfirmError(err instanceof ApiError ? err.message : 'Payment failed. Please try again.');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -254,7 +277,7 @@ const VendorPaymentTerminalPage: FC = () => {
     if (selectedItem) {
       setQueue((prev) => {
         const next = prev.filter((p) => p.id !== selectedItem.id);
-        if (next.length > 0) setSelectedId(next[0].id);
+        setSelectedId(next[0]?.id || '');
         return next;
       });
     }
@@ -269,6 +292,22 @@ const VendorPaymentTerminalPage: FC = () => {
   };
 
   const pendingCount = queue.filter((q) => q.status === 'Waiting').length;
+
+  if (loading) {
+    return (
+      <Layout zone="vendor">
+        <LoadingState label="Loading payment queue…" />
+      </Layout>
+    );
+  }
+
+  if (error) {
+    return (
+      <Layout zone="vendor">
+        <ErrorState message={error} onRetry={refetch} />
+      </Layout>
+    );
+  }
 
   return (
     <Layout zone="vendor">
@@ -306,7 +345,7 @@ const VendorPaymentTerminalPage: FC = () => {
                 </span>
               </div>
               <button
-                onClick={() => setQueue(buildQueue)}
+                onClick={refetch}
                 className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
               >
                 <Clock className="h-4 w-4" />
@@ -533,6 +572,10 @@ const VendorPaymentTerminalPage: FC = () => {
                         </AnimatePresence>
                       </div>
 
+                      {confirmError && (
+                        <p className="text-center text-sm font-medium text-error-500">{confirmError}</p>
+                      )}
+
                       {/* Confirm Button */}
                       <button
                         onClick={handleConfirm}
@@ -552,7 +595,7 @@ const VendorPaymentTerminalPage: FC = () => {
                           </>
                         ) : (
                           <>
-                            <IndianRupee className="h-5 w-5" />
+                            <Banknote className="h-5 w-5" />
                             Confirm Payment Received
                           </>
                         )}

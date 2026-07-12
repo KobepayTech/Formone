@@ -6,11 +6,15 @@ import type {
   CheckoutResult,
   FormCatalogItem,
   LoginResponse,
+  ConfirmPaymentResult,
   ParentTicket,
   School,
   SchoolLoginResponse,
   UserRole,
+  VendorDashboard,
   VendorLoginResponse,
+  VendorQueueItem,
+  VendorTransaction,
 } from './types';
 
 export const authService = {
@@ -75,12 +79,14 @@ export const cartService = {
 };
 
 export const vendorService = {
-  dashboard: () => api.get('/vendor/dashboard'),
-  queue: () => api.get('/vendor/queue'),
+  dashboard: () => api.get<VendorDashboard>('/vendor/dashboard'),
+  queue: () => api.get<VendorQueueItem[]>('/vendor/queue'),
   confirmPayment: (payload: {
     applicationId: string;
     amountTendered: number;
     paymentMethod: string;
     notes?: string;
-  }) => api.post('/vendor/confirm-payment', payload),
+  }) => api.post<ConfirmPaymentResult>('/vendor/confirm-payment', payload),
+  history: (page = 1, limit = 5) =>
+    api.get<VendorTransaction[]>(`/vendor/history?page=${page}&limit=${limit}`),
 };

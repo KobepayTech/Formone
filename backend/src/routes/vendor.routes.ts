@@ -32,7 +32,7 @@ router.get('/queue', asyncHandler(async (req: AuthRequest, res) => {
   if (!vendor) throw new NotFoundError('Vendor not found');
   const apps = await prisma.application.findMany({
     where: { assignedVendorId: vendor.id, status: 'payment_pending', paymentStatus: 'pending' },
-    include: { studentProfile: { select: { firstName: true, lastName: true, universalStudentId: true } }, school: { select: { name: true, city: true } } },
+    include: { studentProfile: { select: { firstName: true, lastName: true, universalStudentId: true, parentName: true, parentPhone: true } }, school: { select: { name: true, city: true } } },
     orderBy: { createdAt: 'desc' },
   });
   success(res, apps);
