@@ -173,6 +173,58 @@ export interface VendorQueueItem {
   school: { name: string; city: string };
 }
 
+export interface SchoolApplicant {
+  id: string;
+  submissionId: string;
+  formType: FormType;
+  status: ApplicationStatus;
+  paymentStatus: PaymentStatus;
+  totalAmount: number;
+  createdAt: string;
+  studentProfile: {
+    firstName: string;
+    lastName: string;
+    universalStudentId: string;
+    parentPhone: string;
+    parentEmail: string;
+  };
+  vendor?: { name: string; vendorId: string } | null;
+  formCatalog?: { formName: string } | null;
+  _count?: { tickets: number };
+}
+
+export interface SchoolInterview {
+  id: string;
+  ticketNumber: string;
+  interviewDate: string;
+  interviewTime: string;
+  venue: string;
+  room?: string | null;
+  status: TicketStatus;
+  studentProfile: { firstName: string; lastName: string };
+  application: { formType: FormType };
+}
+
+export interface SchoolRevenue {
+  today: { revenue: number; forms: number };
+  thisWeek: { revenue: number; forms: number };
+  thisMonth: { revenue: number; forms: number };
+}
+
+export interface VendorTicket {
+  id: string;
+  ticketNumber: string;
+  interviewDate: string;
+  interviewTime: string;
+  venue: string;
+  status: TicketStatus;
+  printedByVendor: boolean;
+  printedAt?: string | null;
+  ticketQrCode?: string | null;
+  school: { name: string };
+  studentProfile: { firstName: string; lastName: string };
+}
+
 export interface VendorTransaction {
   id: string;
   transactionId: string;
